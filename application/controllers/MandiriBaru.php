@@ -8,7 +8,7 @@ class MandiriBaru extends CI_Controller
 
         date_default_timezone_set('Asia/Jakarta');
         $this->load->library('mandiriencrypt');
-        $this->load->driver('cache', array('adapter' => 'file', 'backup' => 'dummy'));
+        $this->load->driver('cache', array('adapter' => 'file', 'backup' => 'file'));
         $this->ci = & get_instance();
     }
 
@@ -55,13 +55,29 @@ class MandiriBaru extends CI_Controller
     
         return $signature;
     }
+    function generateUniqueIdentifier() {
+        // MMDDHHmmssSSS (Month, Day, Hour, Minute, Second, Milliseconds)
+        $timestamp = date('mdHis'); // MMDDHHmmss
+        $milliseconds = round(microtime(true) * 1000) % 1000; // SSS
+        $formattedMilliseconds = str_pad($milliseconds, 3, '0', STR_PAD_LEFT);
+        
+        // Random 9-digit number
+        $randomNumber = str_pad(mt_rand(0, 999999999), 9, '0', STR_PAD_LEFT);
+        
+        return $timestamp . $formattedMilliseconds . $randomNumber;
+    }
     
     
     public function auth(){
-        try {
-            // if(){ //panggil cache auth
+        $cache_key = "auth_response";
 
-            // } else{
+        try {
+            $cached_data = $this->cache->get($cache_key);
+
+            if($cached_data){ //panggil cache auth
+                $this->cache->delete($cache_key);
+                return json_decode($cached_data,true);
+            } else{
                 // Client ID dan Timestamp
                 $clientId = "c61dd0b38c8c482f9fd3a2d5937a7854";
                 $timestamp = gmdate("Y-m-d H:i:s") . "+07:00"; // Sesuaikan dengan format yyyy-mm-dd HH:mm:ssTZD
@@ -106,12 +122,13 @@ class MandiriBaru extends CI_Controller
                 if (curl_errno($ch)) {
                     throw new Exception("[curl auth] ".curl_error($ch));
                 } else {
-                    echo $response;
+                    $this->cache->save($cache_key, $response, 900); //asumsi $response itu string json, timeout 15 menit
+                    return json_decode($response, true);
                 }
 
                 // Menutup cURL
                 curl_close($ch);
-            // }
+            }
         } catch (\Exception $e) {
             throw $e;
         }
@@ -120,24 +137,24 @@ class MandiriBaru extends CI_Controller
     public function inquiry(){
         try {
             $auth = $this->auth();
-
+            
             // Input data
             $httpMethod = "POST";
-            $endpointUrl = "/transfer-va/inquiry";
+            $endpointUrl = "/transfer-va/inquiry"; //path saja / full uri?
             $accessToken = $auth["accessToken"];
             $timestamp = gmdate("Y-m-d H:i:s") . "+07:00"; // Sesuaikan dengan format yyyy-mm-dd HH:mm:ssTZD
             $requestBody = json_encode([
-                "partnerServiceId" => "   ".$this->ci->config->item('client_id_Mandiri'),
-                "customerNo" => "81808087811437538",
-                "virtualAccountNo" => "   "."81808087811437538",
+                "partnerServiceId" => "   ".$this->ci->config->item('partnerServiceId'),
+                "customerNo" => "065117251",
+                "virtualAccountNo" => "   ".$this->ci->config->item('partnerServiceId')."065117251",
                 "trxDateInit" => $timestamp,
-                "channelCode" => $this->ci->config->item('biller_code_open_Mandiri'),
+                "channelCode" => null, //isinya apa?
                 "language" => "ID",
                 "amount" => [
                     "value" => "50000.00",
                     "currency" => "IDR",
                 ],
-                "inquiryRequestId" => "1027664600255163315933",
+                "inquiryRequestId" => $this->generateUniqueIdentifier(),
             ]);
             $clientSecret = "xabNYv8OUWJEmLgEmtQ0i8AvheNaao/Z5NEm+bawKwo=";
 
@@ -150,9 +167,9 @@ class MandiriBaru extends CI_Controller
                 "Content-Type: application/json",
                 "X-TIMESTAMP: $timestamp",
                 "X-SIGNATURE: $signature",
-                "X-PARTNER-ID: ".$this->ci->config->item('secret_key_Mandiri'),
-                "X-EXTERNAL-ID: 7532300325114907378",
-                "CHANNEL-ID: ".$this->ci->config->item('biller_code_open_Mandiri'),
+                "X-PARTNER-ID: BMRI",
+                "X-EXTERNAL-ID: ".null, //dari mana asalnya?
+                "CHANNEL-ID: ".$this->ci->config->item('channelId'),
             ];
 
             // Contoh penggunaan dengan cURL
@@ -185,25 +202,25 @@ class MandiriBaru extends CI_Controller
 
             // Input data
             $httpMethod = "POST";
-            $endpointUrl = "/transfer-va/payment";
+            $endpointUrl = "/transfer-va/payment"; //path saja / full uri?
             $accessToken = $auth["accessToken"];
             $timestamp = gmdate("Y-m-d H:i:s") . "+07:00"; // Sesuaikan dengan format yyyy-mm-dd HH:mm:ssTZD
             $requestBody = json_encode([
-                "partnerServiceId" => "   ".$this->ci->config->item('client_id_Mandiri'),
-                "customerNo" => "81808087811437538",
-                "virtualAccountNo" => "81808087811437538",
-                "virtualAccountName" => "ABCD 081278661234",
+                "partnerServiceId" => "   ".$this->ci->config->item('partnerServiceId'),
+                "customerNo" => "065117251",
+                "virtualAccountNo" => "   ".$this->ci->config->item('partnerServiceId')."065117251",
+                "virtualAccountName" => "adam furqon",
                 "trxDateTime" => $timestamp,
-                "channelCode" => $this->ci->config->item('biller_code_open_Mandiri'),
-                "referenceNo" => "22032399164960011365",
-                "hashedSourceAccountNo" => "90492f66133276d890873a68fc91e56f",
+                "channelCode" => null, //isinya apa?
+                "referenceNo" => null, //dari mana?
+                "hashedSourceAccountNo" => null, //dari mana?
                 "paidAmount" => [
                     "value" => "50000.00",
                     "currency" => "IDR"
                 ],
-                "paymentRequestId" => "1027664600255163315933",
-                "paidBills" => "FFFFFF",
-                "flagAdvise" => "N"
+                "paymentRequestId" => null, //dari mana?
+                "paidBills" => "FFFFFF", //ada formulanya?
+                "flagAdvise" => "N" //artinya apa?
             ]);
             $clientSecret = "xabNYv8OUWJEmLgEmtQ0i8AvheNaao/Z5NEm+bawKwo=";
 
@@ -216,9 +233,9 @@ class MandiriBaru extends CI_Controller
                 "Content-Type: application/json",
                 "X-TIMESTAMP: $timestamp",
                 "X-SIGNATURE: $signature",
-                "X-PARTNER-ID: ".$this->ci->config->item('secret_key_Mandiri'),
-                "X-EXTERNAL-ID: 7532300325114907378",
-                "CHANNEL-ID: ".$this->ci->config->item('biller_code_open_Mandiri'),
+                "X-PARTNER-ID: BMRI",
+                "X-EXTERNAL-ID: ".null, //dari mana asalnya?
+                "CHANNEL-ID: ".$this->ci->config->item('channelId'),
             ];
 
             // Contoh penggunaan dengan cURL

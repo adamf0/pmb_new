@@ -552,3 +552,6 @@ CID & Secret Key For BSI
 $config['secret_key_BSI'] = 'unpak_bogor452';
 $config['biller_code_open_BSI'] = '1038';
 $config['biller_code_close_BSI'] = '1039';
+
+$config['partnerServiceId'] = '89340';
+$config['channelId'] = '89340';
